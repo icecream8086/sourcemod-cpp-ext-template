@@ -7,17 +7,26 @@ on:
 jobs:
   host:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        avx2: [ON, OFF]
     steps:
       - uses: actions/checkout@v4
 
       - name: Configure (host only)
-        run: cmake -S . -B build -DTEMPLATE_BUILD_EXTENSION=OFF
+        run: |
+          cmake -S . -B build -DTEMPLATE_BUILD_EXTENSION=OFF \
+            -DTEMPLATE_DISABLE_AVX2=${{ matrix.avx2 == 'OFF' && 'ON' || 'OFF' }}
 
       - name: Build
         run: cmake --build build -j2
 
       - name: Tests
         run: ctest --test-dir build --output-on-failure
+
+      - name: Smoke
+        run: ctest --test-dir build -L smoke --output-on-failure
 
       - name: Z3
         run: python3 -m pip install z3-solver

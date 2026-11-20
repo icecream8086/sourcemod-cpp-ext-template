@@ -2,6 +2,13 @@
 
 #include <cstddef>
 
+// Guard: compiling the whole translation unit with -mavx2 / -march=native makes
+// every function candidate for AVX2 code and breaks old CPUs. ISA variants must
+// use per-function target attributes instead (see docs/ISA.md).
+#if defined(__AVX2__) && !defined(TEMPLATE_ALLOW_GLOBAL_AVX2)
+#error "Global -mavx2/-march=native detected. Use target attributes, not global ISA flags."
+#endif
+
 namespace template_ext
 {
 // Contract (SoA layout: one array per component, `count` elements each):

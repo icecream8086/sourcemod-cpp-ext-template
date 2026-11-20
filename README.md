@@ -5,8 +5,11 @@ A reusable template for SourceMod C++ extensions with:
 - **CMake** build (extension target + host-side tests/bench),
 - **runtime ISA dispatch** (CPUID detection + function pointers + scalar fallback),
 - **Z3 formal checks** for dispatch safety and algorithm invariants,
+- **destructive smoke tests** (unsupported ISA paths, edge sizes, forced scalar, disabled-AVX2 build),
 - **vendored header-only wheels** (radix heap, robin_hood, nanobench; ska_sort reference),
 - **GLIBC symbol ceiling gate** for old-distro portability.
+
+See `docs/ISA.md` for ISA rules and `AGENTS.md` for the contribution/DoD checklist.
 
 > Compatibility policy: the template provides detection, dispatch, and a GLIBC
 > check **as features**. What "compatible" means for your server is your call —

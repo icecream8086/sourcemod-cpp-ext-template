@@ -10,7 +10,21 @@ option(TEMPLATE_BUILD_EXTENSION "Build the SourceMod extension target (needs SM/
 option(TEMPLATE_BUILD_TESTS "Build host-side tests" ON)
 option(TEMPLATE_BUILD_BENCH "Build host-side benchmark" ON)
 option(TEMPLATE_DISABLE_AVX2 "Compile the AVX2 variant as scalar fallback" OFF)
+option(TEMPLATE_ALLOW_UNSAFE_ISA_FLAGS "Allow -march=native/-mavx* in global flags" OFF)
 set(TEMPLATE_GLIBC_MAX "2.31" CACHE STRING "Maximum allowed GLIBC symbol version")
+
+# Safety: global ISA flags make every function AVX2-only and crash old CPUs.
+if(NOT TEMPLATE_ALLOW_UNSAFE_ISA_FLAGS)
+    foreach(_flags_var CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_RELEASE
+                       CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+        if("${${_flags_var}}" MATCHES "-march=native|-mtune=native|-mavx|-msse4")
+            message(FATAL_ERROR
+                "Unsafe global ISA flag in ${_flags_var}: '${${_flags_var}}'.\n"
+                "Use per-function target attributes (docs/ISA.md); set "
+                "TEMPLATE_ALLOW_UNSAFE_ISA_FLAGS=ON only if you really mean it.")
+        endif()
+    endforeach()
+endif()
 
 set(SM_SDK_DIR "" CACHE PATH "SourceMod source tree (contains public/ and sourcepawn/)")
 set(HL2SDK_DIR "" CACHE PATH "hl2sdk-l4d2 source tree")
@@ -31,6 +45,16 @@ if(TEMPLATE_BUILD_TESTS)
     add_executable(template_tests tests/test_distance.cpp)
     target_link_libraries(template_tests PRIVATE template_base)
     add_test(NAME distance COMMAND template_tests)
+
+    add_executable(smoke_dispatch tests/smoke_dispatch.cpp)
+    target_link_libraries(smoke_dispatch PRIVATE template_base)
+    add_test(NAME smoke_dispatch COMMAND smoke_dispatch)
+    set_tests_properties(smoke_dispatch PROPERTIES LABELS "smoke;isa")
+
+    add_executable(smoke_edge tests/smoke_edge.cpp)
+    target_link_libraries(smoke_edge PRIVATE template_base)
+    add_test(NAME smoke_edge COMMAND smoke_edge)
+    set_tests_properties(smoke_edge PROPERTIES LABELS "smoke;isa")
 endif()
 
 if(TEMPLATE_BUILD_BENCH)
