@@ -23,7 +23,7 @@
 4. **禁止**在热路径反复探测 CPUID；
 5. **禁止**只测有 AVX2 的机器——必须覆盖 unsupported 分支与 `TEMPLATE_DISABLE_AVX2=ON` 构建。
 
-CMake 会在配置阶段拦截全局 ISA 标志（`TEMPLATE_ALLOW_UNSAFE_ISA_FLAGS=ON` 才能绕过），`distance.h` 里也有 `#error` 兜底。
+CMake 会在配置阶段拦截**显式**全局 ISA 标志（`TEMPLATE_ALLOW_UNSAFE_ISA_FLAGS=ON` 才能绕过）。注意发行版编译器可能默认开启 x86-64-v3（不经过命令行），所以发布构建必须在老基线容器里做；头文件无法可靠区分"用户加的 flag"和"发行版默认值"。
 
 ## 新增一个 ISA 变体的步骤
 

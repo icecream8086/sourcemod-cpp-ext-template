@@ -2,12 +2,10 @@
 
 #include <cstddef>
 
-// Guard: compiling the whole translation unit with -mavx2 / -march=native makes
-// every function candidate for AVX2 code and breaks old CPUs. ISA variants must
-// use per-function target attributes instead (see docs/ISA.md).
-#if defined(__AVX2__) && !defined(TEMPLATE_ALLOW_GLOBAL_AVX2)
-#error "Global -mavx2/-march=native detected. Use target attributes, not global ISA flags."
-#endif
+// Note: some distro compilers default to an x86-64-v3 baseline (__AVX2__ is
+// defined without any explicit flag). The template therefore cannot reliably
+// detect "user added -mavx2" from a header; CMake checks explicit flags and
+// docs/ISA.md explains why you must build in a baseline container.
 
 namespace template_ext
 {
