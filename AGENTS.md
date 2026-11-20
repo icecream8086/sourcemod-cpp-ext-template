@@ -23,7 +23,7 @@ cmake --build build32 --target check_glibc
 
 ## 不允许做的事
 
-1. **不要**在 `CMakeLists.txt` 或命令行加全局 `-mavx2` / `-march=native`（CMake 会拦截；`distance.h` 也有 `#error`）；
+1. **不要**在 `CMakeLists.txt` 或命令行加全局 `-mavx2` / `-march=native`（CMake 会拦截显式 flag；发行版默认可能仍是 x86-64-v3，发布构建请用老基线容器）；
 2. **不要**在业务代码直接调用 `DistanceBatchAVX2` 等 ISA 函数——只能通过 `SelectDistanceBatchFn`；
 3. **不要**删除标量实现或让它与 ISA 版本不一致；
 4. **不要**跳过 smoke/verify 就提交；
