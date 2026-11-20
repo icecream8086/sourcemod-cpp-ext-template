@@ -61,11 +61,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install qemu-user
-        run: sudo apt-get update && sudo apt-get install -y qemu-user
+      - name: Install multilib + qemu-user
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib g++-multilib qemu-user
 
-      - name: Configure
-        run: cmake -S . -B build -DTEMPLATE_BUILD_EXTENSION=OFF
+      - name: Configure (32-bit guest)
+        run: cmake -S . -B build -DTEMPLATE_BUILD_EXTENSION=OFF -DTEMPLATE_ARCH=32
 
       - name: Build
         run: cmake --build build -j2

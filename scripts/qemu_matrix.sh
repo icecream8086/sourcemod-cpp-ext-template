@@ -12,16 +12,25 @@ if [ -z "$QEMU64" ] && [ -z "$QEMU32" ]; then
     exit 2
 fi
 
-# Old models must NOT advertise AVX2; Haswell must.
-MODELS_OLD="qemu64 Nehalem"
-MODEL_NEW="Haswell"
+BINARIES=("$BUILD/template_tests" "$BUILD/smoke_dispatch" "$BUILD/smoke_edge")
+for bin in "${BINARIES[@]}"; do
+    [ -x "$bin" ] || { echo "missing $bin (build first)" >&2; exit 2; }
+done
+
+ARCH="$(file -b "$BUILD/template_tests" | grep -oE '32-bit|64-bit' || true)"
+case "$ARCH" in
+    64-bit) QEMU="$QEMU64"; OLD_MODELS="qemu64 Nehalem" ;;
+    32-bit) QEMU="$QEMU32"; OLD_MODELS="qemu32 Nehalem" ;;
+    *) echo "cannot detect binary arch"; exit 2 ;;
+esac
+[ -n "$QEMU" ] || { echo "no qemu for $ARCH" >&2; exit 2; }
 
 run_one() {
-    local qemu="$1" cpu="$2" bin="$3"
+    local cpu="$1" bin="$2"
     echo "== $cpu: $(basename "$bin") =="
     local log
     log="$(mktemp)"
-    if ! "$qemu" -cpu "$cpu" "$bin" >"$log" 2>&1; then
+    if ! "$QEMU" -cpu "$cpu" "$bin" >"$log" 2>&1; then
         echo "FAIL: $bin crashed under -cpu $cpu" >&2
         cat "$log" >&2
         rm -f "$log"
@@ -32,22 +41,9 @@ run_one() {
     return 0
 }
 
-BINARIES=("$BUILD/template_tests" "$BUILD/smoke_dispatch" "$BUILD/smoke_edge")
-for bin in "${BINARIES[@]}"; do
-    [ -x "$bin" ] || { echo "missing $bin (build first)" >&2; exit 2; }
+for cpu in $OLD_MODELS; do
+    for bin in "${BINARIES[@]}"; do run_one "$cpu" "$bin"; done
 done
+for bin in "${BINARIES[@]}"; do run_one Haswell "$bin"; done
 
-ARCH="$(file -b "$BUILD/template_tests" | grep -oE '32-bit|64-bit' || true)"
-case "$ARCH" in
-    64-bit) QEMU="$QEMU64" ;;
-    32-bit) QEMU="$QEMU32" ;;
-    *) echo "cannot detect binary arch"; exit 2 ;;
-esac
-[ -n "$QEMU" ] || { echo "no qemu for $ARCH" >&2; exit 2; }
-
-for cpu in $MODELS_OLD; do
-    for bin in "${BINARIES[@]}"; do run_one "$QEMU" "$cpu" "$bin"; done
-done
-for bin in "${BINARIES[@]}"; do run_one "$QEMU" "$MODEL_NEW" "$bin"; done
-
-echo "PASS: all binaries survived old/new CPU models"
+echo "PASS: all binaries survived old/new CPU models ($ARCH)"
