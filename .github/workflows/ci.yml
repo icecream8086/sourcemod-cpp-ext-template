@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (host only)
+        run: cmake -S . -B build -DTEMPLATE_BUILD_EXTENSION=OFF
+
+      - name: Build
+        run: cmake --build build -j2
+
+      - name: Tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Z3
+        run: python3 -m pip install z3-solver
+
+      - name: Formal checks
+        run: cmake --build build --target verify

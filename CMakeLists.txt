@@ -1,0 +1,102 @@
+cmake_minimum_required(VERSION 3.16)
+project(sourcemod_cpp_ext_template LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+option(TEMPLATE_BUILD_EXTENSION "Build the SourceMod extension target (needs SM/HL2 SDK)" ON)
+option(TEMPLATE_BUILD_TESTS "Build host-side tests" ON)
+option(TEMPLATE_BUILD_BENCH "Build host-side benchmark" ON)
+option(TEMPLATE_DISABLE_AVX2 "Compile the AVX2 variant as scalar fallback" OFF)
+set(TEMPLATE_GLIBC_MAX "2.31" CACHE STRING "Maximum allowed GLIBC symbol version")
+
+set(SM_SDK_DIR "" CACHE PATH "SourceMod source tree (contains public/ and sourcepawn/)")
+set(HL2SDK_DIR "" CACHE PATH "hl2sdk-l4d2 source tree")
+set(MMSOURCE_DIR "" CACHE PATH "metamod-source source tree")
+
+# ---------------------------------------------------------------- host code
+add_library(template_base STATIC
+    src/dispatch.cpp
+    src/base/distance_scalar.cpp
+    src/isa/avx2/distance_avx2.cpp)
+target_include_directories(template_base PUBLIC include)
+if(TEMPLATE_DISABLE_AVX2)
+    target_compile_definitions(template_base PRIVATE TEMPLATE_DISABLE_AVX2=1)
+endif()
+
+if(TEMPLATE_BUILD_TESTS)
+    enable_testing()
+    add_executable(template_tests tests/test_distance.cpp)
+    target_link_libraries(template_tests PRIVATE template_base)
+    add_test(NAME distance COMMAND template_tests)
+endif()
+
+if(TEMPLATE_BUILD_BENCH)
+    add_executable(template_bench bench/bench_distance.cpp)
+    target_include_directories(template_bench PRIVATE third_party/nanobench)
+    target_link_libraries(template_bench PRIVATE template_base)
+endif()
+
+# --------------------------------------------------------- formal verification
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_FOUND)
+    add_custom_target(verify
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/verify/verify_dispatch.py
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/verify/verify_distance.py
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/verify/verify_sort.py
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Running Z3 formal checks (requires z3-solver)")
+endif()
+
+# ------------------------------------------------------------- SM extension
+if(TEMPLATE_BUILD_EXTENSION)
+    find_path(SM_SDK_HEADER smsdk_ext.h
+        PATHS "${SM_SDK_DIR}/public" "${SM_SDK_DIR}/public/sourcepawn"
+        NO_DEFAULT_PATH)
+    find_path(HL2SDK_HEADER tier1.h
+        PATHS "${HL2SDK_DIR}/public/tier1" "${HL2SDK_DIR}/public"
+        NO_DEFAULT_PATH)
+    find_path(MMSOURCE_HEADER ISmmPlugin.h
+        PATHS "${MMSOURCE_DIR}/core" "${MMSOURCE_DIR}/core/sourcehook"
+        NO_DEFAULT_PATH)
+
+    if(SM_SDK_HEADER AND HL2SDK_HEADER AND MMSOURCE_HEADER)
+        add_library(template_ext SHARED
+            src/extension.cpp
+            src/dispatch.cpp
+            src/base/distance_scalar.cpp
+            src/isa/avx2/distance_avx2.cpp)
+        target_include_directories(template_ext PRIVATE
+            include
+            "${SM_SDK_DIR}/public"
+            "${SM_SDK_DIR}/public/sourcepawn"
+            "${SM_SDK_DIR}/sourcepawn/include"
+            "${MMSOURCE_DIR}/core"
+            "${MMSOURCE_DIR}/core/sourcehook"
+            "${HL2SDK_DIR}/public"
+            "${HL2SDK_DIR}/public/engine"
+            "${HL2SDK_DIR}/public/tier1"
+            "${HL2SDK_DIR}/public/game/server")
+        target_compile_options(template_ext PRIVATE
+            -m32 -fPIC -fvisibility=hidden -static-libgcc -static-libstdc++)
+        target_link_options(template_ext PRIVATE
+            -m32 -shared -static-libgcc -static-libstdc++ -Wl,--strip-debug)
+        target_link_directories(template_ext PRIVATE "${HL2SDK_DIR}/lib/linux")
+        target_link_libraries(template_ext PRIVATE tier1 dl m pthread)
+        set_target_properties(template_ext PROPERTIES
+            PREFIX "" OUTPUT_NAME "template.ext.2.l4d2")
+
+        add_custom_target(check_glibc
+            COMMAND ${CMAKE_COMMAND}
+                -DSO=$<TARGET_FILE:template_ext>
+                -DGLIBC_MAX=${TEMPLATE_GLIBC_MAX}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_glibc.cmake
+            DEPENDS template_ext
+            COMMENT "Checking GLIBC symbol ceiling")
+    else()
+        message(STATUS "SM/HL2/MM SDK not found - extension target skipped "
+                       "(set SM_SDK_DIR/HL2SDK_DIR/MMSOURCE_DIR)")
+    endif()
+endif()
