@@ -127,3 +127,5 @@ See `third_party/README.md` for sources and commits.
 
 GPL-3.0 (matches the SourceMod/Anne ecosystem). Vendored headers keep their
 upstream licenses.
+
+See `verify/README.md` for what Z3 proves and what it does not.

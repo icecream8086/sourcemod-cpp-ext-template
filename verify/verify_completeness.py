@@ -3,11 +3,16 @@
 
 Covers both 32-bit and 64-bit size_t so the template stays reusable for 64-bit
 SourceMod games as well.
+
+Important modeling detail: a plain `count * 3` in a `bits`-wide BitVec wraps,
+and the wrapped value is always <= UINT_MAX, so comparing it to UINT_MAX proves
+nothing. Overflow must be checked in a wider bit-vector (bits + 2) using
+zero-extension.
 """
 import sys
 
 from z3 import (And, BitVec, BitVecVal, Bool, If, Implies, Not, Or, Solver,
-                ULE, unsat)
+                UGE, ULE, UGT, ZeroExt, unsat)
 
 
 def check(name: str, formula) -> bool:
@@ -28,11 +33,16 @@ def main() -> int:
         count = BitVec(f"count{bits}", bits)
         max_batch = maxv // 3
         valid_count = ULE(count, BitVecVal(max_batch, bits))
-        product = count * BitVecVal(3, bits)
 
-        # Guard => count*3 cannot wrap.
-        ok &= check(f"{bits}-bit: valid count implies 3*count fits",
-                    Implies(valid_count, ULE(product, BitVecVal(maxv, bits))))
+        # Wide (bits+2) arithmetic: 3 * count fits without wrapping.
+        wide = ZeroExt(2, count)
+        product = wide * BitVecVal(3, bits + 2)
+        limit = BitVecVal(maxv, bits + 2)
+
+        ok &= check(f"{bits}-bit: valid count implies 3*count <= UINT_MAX",
+                    Implies(valid_count, ULE(product, limit)))
+        ok &= check(f"{bits}-bit: invalid count implies 3*count > UINT_MAX",
+                    Implies(Not(valid_count), UGT(product, limit)))
 
         # Validity function (mirrors ValidDistanceBatch).
         names = ("ax", "ay", "az", "bx", "by", "bz", "out")
