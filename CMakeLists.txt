@@ -35,6 +35,13 @@ if(NOT "${TEMPLATE_TARGET_FLAGS}" STREQUAL "")
     add_link_options(${TEMPLATE_TARGET_FLAGS})
 endif()
 
+# Baseline ISA: distro compilers may default to x86-64-v3 (AVX2). Force the
+# baseline path to stay VEX-free; per-function target attributes still enable
+# AVX2 inside the annotated function.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|i.86")
+    add_compile_options(-mno-avx -mno-avx2 -mno-avx512f)
+endif()
+
 # Safety: global ISA flags make every function AVX2-only and crash old CPUs.
 if(NOT TEMPLATE_ALLOW_UNSAFE_ISA_FLAGS)
     foreach(_flags_var CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_RELEASE
