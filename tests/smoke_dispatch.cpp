@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <vector>
 
 #include "template_ext/distance.h"
 
@@ -15,10 +16,6 @@ void Check(bool condition, const char *what)
     }
 }
 
-// Destructive smoke test: enumerate every feature combination and force flag.
-// We only *select* function pointers here; we never call the AVX2 function on
-// a CPU that does not advertise AVX2, because that is exactly the crash this
-// dispatch layer exists to prevent.
 void TestDispatchMatrix()
 {
     for (int bits = 0; bits < 8; ++bits)
@@ -43,24 +40,27 @@ void TestDispatchMatrix()
     }
 }
 
-void TestScalarNeverCrashes()
+void TestFoolProofing()
 {
-    const float one[1] = {1.0f};
     float out[1] = {};
-    template_ext::DistanceBatchScalar(one, one, one, one, one, one, out, 1);
-    Check(out[0] == 0.0f, "same point distance is zero");
+    const float one[1] = {1.0f};
 
-    template_ext::DistanceBatchScalar(nullptr, nullptr, nullptr,
-                                      nullptr, nullptr, nullptr,
-                                      out, 0);
-    Check(true, "count=0 does not dereference inputs");
+    Check(!template_ext::DistanceBatchScalar(one, one, one, one, one, one, nullptr, 1),
+          "null output rejected");
+    Check(!template_ext::DistanceBatchScalar(one, nullptr, one, one, one, one, out, 1),
+          "null component rejected");
+    Check(!template_ext::DistanceBatchScalar(one, one, one, one, one, one, out,
+                                             template_ext::MaxDistanceBatch() + 1),
+          "overflow-sized count rejected");
+    Check(template_ext::DistanceBatchScalar(one, one, one, one, one, one, out, 0),
+          "empty batch accepted");
 }
 }
 
 int main()
 {
     TestDispatchMatrix();
-    TestScalarNeverCrashes();
+    TestFoolProofing();
     if (g_Failures != 0)
     {
         std::printf("%d smoke failure(s)\n", g_Failures);

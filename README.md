@@ -2,14 +2,16 @@
 
 A reusable template for SourceMod C++ extensions with:
 
+- **32-bit and 64-bit targets** (`TEMPLATE_ARCH=32|64|native`) — L4D2 is 32-bit i386, but SourceMod also runs on 64-bit games;
 - **CMake** build (extension target + host-side tests/bench),
 - **runtime ISA dispatch** (CPUID detection + function pointers + scalar fallback),
-- **Z3 formal checks** for dispatch safety and algorithm invariants,
-- **destructive smoke tests** (unsupported ISA paths, edge sizes, forced scalar, disabled-AVX2 build),
+- **fool-proof C++ API** (bool-returning primitives, null/overflow guards, static ABI assertions),
+- **destructive smoke tests** (unsupported ISA paths, edge sizes, forced scalar, disabled-AVX2 build, sanitizers),
+- **Z3 formal checks** for dispatch safety, completeness and algorithm invariants,
 - **vendored header-only wheels** (radix heap, robin_hood, nanobench; ska_sort reference),
 - **GLIBC symbol ceiling gate** for old-distro portability.
 
-See `docs/ISA.md` for ISA rules and `AGENTS.md` for the contribution/DoD checklist.
+See `docs/ISA.md` for ISA/ABI rules and `AGENTS.md` for the contribution/DoD checklist.
 
 > Compatibility policy: the template provides detection, dispatch, and a GLIBC
 > check **as features**. What "compatible" means for your server is your call —
@@ -19,26 +21,36 @@ See `docs/ISA.md` for ISA rules and `AGENTS.md` for the contribution/DoD checkli
 ## Layout
 
 ```text
-include/template_ext/     public headers + contracts
+include/template_ext/     public headers + contracts + static assertions
 src/extension.cpp         SourceMod extension glue (optional target)
 src/base/                 scalar reference implementations
 src/isa/avx2/             ISA variants (target attribute, not global -mavx2)
 src/dispatch.cpp          CPUID detection + selection rule
 spec/                     human-readable contracts / invariants
-verify/                   Z3 models (dispatch, distance, sorting)
-tests/                    host-side tests (no SM SDK needed)
+verify/                   Z3 models (dispatch, completeness, distance, sorting)
+tests/                    host-side tests + destructive smoke tests
 bench/                    nanobench benchmark
 third_party/              vendored header-only wheels
+docs/ISA.md               ISA/ABI rules
 cmake/check_glibc.cmake   GLIBC ceiling check
 ```
 
 ## Quick start (host only)
 
 ```bash
+# native 64-bit host
 cmake -S . -B build -DTEMPLATE_BUILD_EXTENSION=OFF
 cmake --build build -j
 ctest --test-dir build --output-on-failure
-./build/template_bench            # needs TEMPLATE_BUILD_BENCH=ON
+ctest --test-dir build -L smoke --output-on-failure
+
+# force 32-bit (needs gcc-multilib)
+cmake -S . -B build32 -DTEMPLATE_BUILD_EXTENSION=OFF -DTEMPLATE_ARCH=32
+cmake --build build32 -j
+ctest --test-dir build32 --output-on-failure
+
+# sanitizers
+cmake -S . -B build-san -DTEMPLATE_BUILD_EXTENSION=OFF -DTEMPLATE_SANITIZE=address,undefined
 ```
 
 Formal checks (requires `pip install z3-solver`):
@@ -47,6 +59,19 @@ Formal checks (requires `pip install z3-solver`):
 cmake --build build --target verify
 ```
 
+## API fool-proofing
+
+The primitive returns `bool` and validates its arguments:
+
+```cpp
+using DistanceBatchFn = bool (*)(...);
+
+bool ValidDistanceBatch(...);   // rejects nulls (count>0) and count*3 overflow
+```
+
+Implementations return `false` instead of crashing on invalid input; the
+extension native maps `false` to `0`.
+
 ## Build the extension
 
 ```bash
@@ -54,23 +79,24 @@ cmake -S . -B build32 \
   -DSM_SDK_DIR=/path/to/sourcemod \
   -DHL2SDK_DIR=/path/to/hl2sdk-l4d2 \
   -DMMSOURCE_DIR=/path/to/metamod-source \
+  -DTEMPLATE_ARCH=32 \
   -DTEMPLATE_GLIBC_MAX=2.31
 cmake --build build32 --target template_ext -j
 cmake --build build32 --target check_glibc
 ```
 
-The output is `template.ext.2.l4d2.so` (32-bit i386), with
+The output is `template.ext.2.l4d2.so` (32-bit i386) with
 `-static-libgcc -static-libstdc++` and `--strip-debug`.
 
 ## ISA dispatch pattern
 
 - The AVX2 function uses `__attribute__((target("avx2,fma")))`; the rest of the
   translation unit stays baseline. Do **not** compile the whole extension with
-  `-mavx2`.
+  `-mavx2` (CMake rejects explicit flags; `docs/ISA.md` explains distro baselines).
 - `dispatch.cpp` reads CPUID once, then `SelectDistanceBatchFn` returns either
   `DistanceBatchScalar` or `DistanceBatchAVX2`.
 - A scalar implementation must always exist. Add ConVar/env overrides in real
-  extensions (see `docs/anne/52-通用C++扩展标准` for the policy).
+  extensions.
 
 ## Formal support (minimum)
 
@@ -80,9 +106,10 @@ The output is `template.ext.2.l4d2.so` (32-bit i386), with
 | L1 | invariant proof for base implementation | `verify_sort.py` (sorting network) |
 | L2 | equivalence/invariant proof for the accelerated primitive | `verify_distance.py` |
 | L3 | dispatch safety proof | `verify_dispatch.py` |
+| L4 | **completeness**: size arithmetic + validity totality + dispatch totality (32/64-bit) | `verify_completeness.py` |
 
-Any ISA-accelerated extension must provide **L1 + L2 + L3**; a base
-implementation must provide **L1**. The Z3 models are spec-level (not
+Any ISA-accelerated extension must provide **L1 + L2 + L3 + L4**; a base
+implementation must provide **L1 + L4**. The Z3 models are spec-level (not
 bit-exact float models) — extend them when the contract needs it.
 
 ## Vendored wheels

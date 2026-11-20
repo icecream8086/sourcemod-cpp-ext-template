@@ -37,7 +37,8 @@ private:
         const template_ext::DistanceBatchFn fn =
             template_ext::SelectDistanceBatchFn(template_ext::DetectCpuFeatures());
         float out = 0.0f;
-        fn(ax, ay, az, bx, by, bz, &out, 1);
+        if (!fn(ax, ay, az, bx, by, bz, &out, 1))
+            return 0;
         return sp_ftoc(out);
     }
 };

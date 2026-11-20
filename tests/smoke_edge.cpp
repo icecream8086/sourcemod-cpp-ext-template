@@ -24,11 +24,12 @@ void RunCase(Fn fn, std::size_t count, std::size_t offset, const char *label)
     std::vector<float> ax(count + offset, 1.0f), ay(count + offset, 2.0f), az(count + offset, 3.0f);
     std::vector<float> bx(count + offset, 2.0f), by(count + offset, 3.0f), bz(count + offset, 4.0f);
     std::vector<float> out(count + 1, -1.0f);
-    fn(ax.data() + offset, ay.data() + offset, az.data() + offset,
-       bx.data() + offset, by.data() + offset, bz.data() + offset,
-       out.data(), count);
+    const bool ok = fn(ax.data() + offset, ay.data() + offset, az.data() + offset,
+                       bx.data() + offset, by.data() + offset, bz.data() + offset,
+                       out.data(), count);
+    Check(ok, label);
     for (std::size_t i = 0; i < count; ++i)
-        Check(std::isfinite(out[i]), label);
+        Check(std::isfinite(out[i]), "finite output");
     Check(out[count] == -1.0f, "output tail is untouched");
 }
 

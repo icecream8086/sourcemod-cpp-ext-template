@@ -9,16 +9,15 @@
 
 namespace template_ext
 {
-// Per-function target attribute: the rest of the TU stays baseline, so the
-// shared object remains loadable on CPUs without AVX2 as long as the
-// dispatcher never selects this function.
 #if defined(TEMPLATE_X86) && !defined(TEMPLATE_DISABLE_AVX2)
 __attribute__((target("avx2,fma")))
 #endif
-void DistanceBatchAVX2(const float *ax, const float *ay, const float *az,
+bool DistanceBatchAVX2(const float *ax, const float *ay, const float *az,
                        const float *bx, const float *by, const float *bz,
                        float *out, std::size_t count)
 {
+    if (!ValidDistanceBatch(ax, ay, az, bx, by, bz, out, count))
+        return false;
 #if defined(TEMPLATE_X86) && !defined(TEMPLATE_DISABLE_AVX2)
     std::size_t i = 0;
     for (; i + 8 <= count; i += 8)
@@ -41,5 +40,6 @@ void DistanceBatchAVX2(const float *ax, const float *ay, const float *az,
 #else
     DistanceBatchScalar(ax, ay, az, bx, by, bz, out, count);
 #endif
+    return true;
 }
 }

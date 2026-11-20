@@ -10,13 +10,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        arch: [native, "32"]
         avx2: [ON, OFF]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure (host only)
+      - name: Install multilib
+        if: matrix.arch == '32'
+        run: sudo apt-get update && sudo apt-get install -y gcc-multilib g++-multilib
+
+      - name: Configure
         run: |
           cmake -S . -B build -DTEMPLATE_BUILD_EXTENSION=OFF \
+            -DTEMPLATE_ARCH=${{ matrix.arch }} \
             -DTEMPLATE_DISABLE_AVX2=${{ matrix.avx2 == 'OFF' && 'ON' || 'OFF' }}
 
       - name: Build
@@ -33,3 +39,16 @@ jobs:
 
       - name: Formal checks
         run: cmake --build build --target verify
+
+  sanitize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure with sanitisers
+        run: |
+          cmake -S . -B build -DTEMPLATE_BUILD_EXTENSION=OFF \
+            -DTEMPLATE_SANITIZE=address,undefined
+      - name: Build
+        run: cmake --build build -j2
+      - name: Tests
+        run: ctest --test-dir build --output-on-failure

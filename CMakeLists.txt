@@ -11,7 +11,29 @@ option(TEMPLATE_BUILD_TESTS "Build host-side tests" ON)
 option(TEMPLATE_BUILD_BENCH "Build host-side benchmark" ON)
 option(TEMPLATE_DISABLE_AVX2 "Compile the AVX2 variant as scalar fallback" OFF)
 option(TEMPLATE_ALLOW_UNSAFE_ISA_FLAGS "Allow -march=native/-mavx* in global flags" OFF)
+option(TEMPLATE_WERROR "Treat host-side warnings as errors" ON)
+set(TEMPLATE_SANITIZE "" CACHE STRING "Host-side sanitizers, e.g. address,undefined")
+set(TEMPLATE_ARCH "native" CACHE STRING "Target arch: native | 32 | 64")
 set(TEMPLATE_GLIBC_MAX "2.31" CACHE STRING "Maximum allowed GLIBC symbol version")
+
+set(SM_SDK_DIR "" CACHE PATH "SourceMod source tree (contains public/ and sourcepawn/)")
+set(HL2SDK_DIR "" CACHE PATH "hl2sdk-l4d2 source tree")
+set(MMSOURCE_DIR "" CACHE PATH "metamod-source source tree")
+
+# --------------------------------------------------------------- arch/ABI
+set(TEMPLATE_TARGET_FLAGS "")
+if(TEMPLATE_ARCH STREQUAL "32")
+    set(TEMPLATE_TARGET_FLAGS "-m32")
+    add_compile_definitions(TEMPLATE_EXPECT_POINTER_BITS=32)
+elseif(TEMPLATE_ARCH STREQUAL "64")
+    add_compile_definitions(TEMPLATE_EXPECT_POINTER_BITS=64)
+elseif(NOT TEMPLATE_ARCH STREQUAL "native")
+    message(FATAL_ERROR "TEMPLATE_ARCH must be native, 32 or 64 (got '${TEMPLATE_ARCH}')")
+endif()
+if(NOT "${TEMPLATE_TARGET_FLAGS}" STREQUAL "")
+    add_compile_options(${TEMPLATE_TARGET_FLAGS})
+    add_link_options(${TEMPLATE_TARGET_FLAGS})
+endif()
 
 # Safety: global ISA flags make every function AVX2-only and crash old CPUs.
 if(NOT TEMPLATE_ALLOW_UNSAFE_ISA_FLAGS)
@@ -26,9 +48,17 @@ if(NOT TEMPLATE_ALLOW_UNSAFE_ISA_FLAGS)
     endforeach()
 endif()
 
-set(SM_SDK_DIR "" CACHE PATH "SourceMod source tree (contains public/ and sourcepawn/)")
-set(HL2SDK_DIR "" CACHE PATH "hl2sdk-l4d2 source tree")
-set(MMSOURCE_DIR "" CACHE PATH "metamod-source source tree")
+if(NOT "${TEMPLATE_SANITIZE}" STREQUAL "")
+    message(STATUS "Host sanitizers enabled: ${TEMPLATE_SANITIZE}")
+    add_compile_options(-fsanitize=${TEMPLATE_SANITIZE} -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=${TEMPLATE_SANITIZE})
+endif()
+
+function(template_warnings target)
+    if(TEMPLATE_WERROR)
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+endfunction()
 
 # ---------------------------------------------------------------- host code
 add_library(template_base STATIC
@@ -36,6 +66,7 @@ add_library(template_base STATIC
     src/base/distance_scalar.cpp
     src/isa/avx2/distance_avx2.cpp)
 target_include_directories(template_base PUBLIC include)
+template_warnings(template_base)
 if(TEMPLATE_DISABLE_AVX2)
     target_compile_definitions(template_base PRIVATE TEMPLATE_DISABLE_AVX2=1)
 endif()
@@ -44,15 +75,18 @@ if(TEMPLATE_BUILD_TESTS)
     enable_testing()
     add_executable(template_tests tests/test_distance.cpp)
     target_link_libraries(template_tests PRIVATE template_base)
+    template_warnings(template_tests)
     add_test(NAME distance COMMAND template_tests)
 
     add_executable(smoke_dispatch tests/smoke_dispatch.cpp)
     target_link_libraries(smoke_dispatch PRIVATE template_base)
+    template_warnings(smoke_dispatch)
     add_test(NAME smoke_dispatch COMMAND smoke_dispatch)
     set_tests_properties(smoke_dispatch PROPERTIES LABELS "smoke;isa")
 
     add_executable(smoke_edge tests/smoke_edge.cpp)
     target_link_libraries(smoke_edge PRIVATE template_base)
+    template_warnings(smoke_edge)
     add_test(NAME smoke_edge COMMAND smoke_edge)
     set_tests_properties(smoke_edge PROPERTIES LABELS "smoke;isa")
 endif()
@@ -68,6 +102,7 @@ find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_FOUND)
     add_custom_target(verify
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/verify/verify_dispatch.py
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/verify/verify_completeness.py
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/verify/verify_distance.py
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/verify/verify_sort.py
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -104,9 +139,11 @@ if(TEMPLATE_BUILD_EXTENSION)
             "${HL2SDK_DIR}/public/tier1"
             "${HL2SDK_DIR}/public/game/server")
         target_compile_options(template_ext PRIVATE
-            -m32 -fPIC -fvisibility=hidden -static-libgcc -static-libstdc++)
+            ${TEMPLATE_TARGET_FLAGS} -fPIC -fvisibility=hidden
+            -static-libgcc -static-libstdc++)
         target_link_options(template_ext PRIVATE
-            -m32 -shared -static-libgcc -static-libstdc++ -Wl,--strip-debug)
+            ${TEMPLATE_TARGET_FLAGS} -shared -static-libgcc -static-libstdc++
+            -Wl,--strip-debug)
         target_link_directories(template_ext PRIVATE "${HL2SDK_DIR}/lib/linux")
         target_link_libraries(template_ext PRIVATE tier1 dl m pthread)
         set_target_properties(template_ext PROPERTIES

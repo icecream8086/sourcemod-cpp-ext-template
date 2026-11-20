@@ -18,13 +18,27 @@ void Check(bool condition, const char *what)
     }
 }
 
-void TestScalarContract()
+void TestContract()
 {
+    const float zero[1] = {0.0f};
+    float out[1] = {};
+
+    Check(template_ext::ValidDistanceBatch(zero, zero, zero, zero, zero, zero, out, 0),
+          "count=0 is valid even with pointers");
+    Check(!template_ext::ValidDistanceBatch(nullptr, zero, zero, zero, zero, zero, out, 1),
+          "null pointer with count>0 is invalid");
+    Check(template_ext::ValidDistanceBatch(zero, zero, zero, zero, zero, zero, out, 1),
+          "valid pointers accepted");
+    Check(template_ext::MaxDistanceBatch() * 3 <= static_cast<std::size_t>(-1),
+          "MaxDistanceBatch does not overflow when multiplied by 3");
+
     const float ax[] = {0}, ay[] = {0}, az[] = {0};
     const float bx[] = {3}, by[] = {4}, bz[] = {0};
-    float out[1] = {};
-    template_ext::DistanceBatchScalar(ax, ay, az, bx, by, bz, out, 1);
+    Check(template_ext::DistanceBatchScalar(ax, ay, az, bx, by, bz, out, 1),
+          "scalar returns true on valid input");
     Check(std::fabs(out[0] - 5.0f) < 1e-5f, "3-4-0 distance = 5");
+    Check(!template_ext::DistanceBatchScalar(nullptr, ay, az, bx, by, bz, out, 1),
+          "scalar returns false on null");
 }
 
 void TestBatchEquivalence()
@@ -49,12 +63,14 @@ void TestBatchEquivalence()
         }
 
         std::vector<float> scalar(count), avx2(count);
-        template_ext::DistanceBatchScalar(ax.data(), ay.data(), az.data(),
-                                          bx.data(), by.data(), bz.data(),
-                                          scalar.data(), count);
-        template_ext::DistanceBatchAVX2(ax.data(), ay.data(), az.data(),
-                                        bx.data(), by.data(), bz.data(),
-                                        avx2.data(), count);
+        Check(template_ext::DistanceBatchScalar(ax.data(), ay.data(), az.data(),
+                                                bx.data(), by.data(), bz.data(),
+                                                scalar.data(), count),
+              "scalar returns true");
+        Check(template_ext::DistanceBatchAVX2(ax.data(), ay.data(), az.data(),
+                                              bx.data(), by.data(), bz.data(),
+                                              avx2.data(), count),
+              "avx2 returns true");
         for (std::size_t i = 0; i < count; ++i)
         {
             Check(std::isfinite(scalar[i]), "scalar finite");
@@ -91,7 +107,7 @@ void TestDispatch()
 
 int main()
 {
-    TestScalarContract();
+    TestContract();
     TestBatchEquivalence();
     TestDispatch();
     if (g_Failures != 0)

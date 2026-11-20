@@ -3,17 +3,18 @@
 `template_ext::DistanceBatchFn`
 
 ```cpp
-void fn(const float *ax, const float *ay, const float *az,
+bool fn(const float *ax, const float *ay, const float *az,
         const float *bx, const float *by, const float *bz,
         float *out, std::size_t count);
 ```
 
 - Arrays are structure-of-arrays: `count` elements each.
-- For every `i` in `[0, count)`:
+- **Returns `false` and writes nothing** when `count > MaxDistanceBatch()` or when
+  `count > 0` and any pointer is null (`ValidDistanceBatch`).
+- For valid inputs, every `i` in `[0, count)`:
   `out[i] = sqrt((ax[i]-bx[i])^2 + (ay[i]-by[i])^2 + (az[i]-bz[i])^2)`
-- `count == 0` is a no-op.
-- Output must be finite for finite inputs.
-- Symmetric in `a`/`b`; non-negative.
+- `count == 0` is a valid no-op (even with null pointers).
+- Output must be finite for finite inputs; symmetric in `a`/`b`; non-negative.
 
 SoA is intentionally chosen: the ISA variant becomes plain contiguous loads
 (no gathers), and the scalar fallback stays trivial.

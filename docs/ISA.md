@@ -43,3 +43,19 @@ CMake 会在配置阶段拦截**显式**全局 ISA 标志（`TEMPLATE_ALLOW_UNSA
 - `ymm` 只有 8 个，AVX2 能带来的并行度有限；
 - BMI2 的 `pext/pdep` 只有 32 位形式；
 - 通用寄存器少，SoA 布局比 AoS 更容易让编译器生成好代码。
+
+## 位宽与 ABI（32 / 64）
+
+模板不假设目标位宽：
+
+| 选项 | 效果 |
+|---|---|
+| `TEMPLATE_ARCH=native`（默认） | 跟随编译器默认 |
+| `TEMPLATE_ARCH=32` | 全局 `-m32`，并 `static_assert(sizeof(void*) == 4)` |
+| `TEMPLATE_ARCH=64` | 并 `static_assert(sizeof(void*) == 8)` |
+
+- L4D2 是 32 位 i386；SourceMod 也有 64 位游戏，模板要两边都能编；
+- 指针宽度、`size_t` 宽度不得手写常量，统一用 `size_t` / `uintptr_t`；
+- `ValidDistanceBatch` 的 `count * 3` 溢出检查已用 Z3 在 **32/64 位**下证明（L4）；
+- 32/64 位构建在 CI 矩阵里都跑（`arch: native, 32`）；
+- GLIBC 基线随架构不同，`check_glibc` 只对当前产物生效。

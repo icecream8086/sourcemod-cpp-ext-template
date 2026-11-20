@@ -1,28 +1,50 @@
 #pragma once
 
 #include <cstddef>
-
-// Note: some distro compilers default to an x86-64-v3 baseline (__AVX2__ is
-// defined without any explicit flag). The template therefore cannot reliably
-// detect "user added -mavx2" from a header; CMake checks explicit flags and
-// docs/ISA.md explains why you must build in a baseline container.
+#include <cstdint>
 
 namespace template_ext
 {
+// Compile-time sanity checks: catch type/ABI drift early.
+static_assert(sizeof(float) == 4, "float must be IEEE-754 single precision");
+static_assert(sizeof(std::size_t) >= 4, "size_t too small");
+#if defined(TEMPLATE_EXPECT_POINTER_BITS)
+static_assert(sizeof(void *) * 8 == TEMPLATE_EXPECT_POINTER_BITS,
+              "pointer width does not match TEMPLATE_ARCH");
+#endif
+
 // Contract (SoA layout: one array per component, `count` elements each):
 //   for i in [0, count):
 //     out[i] = sqrt((ax[i]-bx[i])^2 + (ay[i]-by[i])^2 + (az[i]-bz[i])^2)
-//   out must be finite for finite inputs; count may be 0.
-// SoA is chosen deliberately: it keeps ISA variants simple and branch-free.
-using DistanceBatchFn = void (*)(const float *ax, const float *ay, const float *az,
+//   valid inputs only; count == 0 is a no-op.
+using DistanceBatchFn = bool (*)(const float *ax, const float *ay, const float *az,
                                  const float *bx, const float *by, const float *bz,
                                  float *out, std::size_t count);
 
-void DistanceBatchScalar(const float *ax, const float *ay, const float *az,
+constexpr std::size_t MaxDistanceBatch()
+{
+    return static_cast<std::size_t>(-1) / 3;
+}
+
+// Fool-proof boundary: rejects null pointers for non-empty batches and
+// `count * 3` overflow before any dereference.
+inline bool ValidDistanceBatch(const float *ax, const float *ay, const float *az,
+                               const float *bx, const float *by, const float *bz,
+                               float *out, std::size_t count)
+{
+    if (count > MaxDistanceBatch())
+        return false;
+    if (count == 0)
+        return true;
+    return ax != nullptr && ay != nullptr && az != nullptr &&
+           bx != nullptr && by != nullptr && bz != nullptr && out != nullptr;
+}
+
+bool DistanceBatchScalar(const float *ax, const float *ay, const float *az,
                          const float *bx, const float *by, const float *bz,
                          float *out, std::size_t count);
 
-void DistanceBatchAVX2(const float *ax, const float *ay, const float *az,
+bool DistanceBatchAVX2(const float *ax, const float *ay, const float *az,
                        const float *bx, const float *by, const float *bz,
                        float *out, std::size_t count);
 
