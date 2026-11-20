@@ -89,6 +89,12 @@ if(TEMPLATE_BUILD_TESTS)
     template_warnings(smoke_edge)
     add_test(NAME smoke_edge COMMAND smoke_edge)
     set_tests_properties(smoke_edge PROPERTIES LABELS "smoke;isa")
+
+    add_custom_target(check_isa
+        COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/audit_isa.sh
+                $<TARGET_FILE:template_tests>
+        DEPENDS template_tests
+        COMMENT "Auditing baseline functions for ISA instructions")
 endif()
 
 if(TEMPLATE_BUILD_BENCH)

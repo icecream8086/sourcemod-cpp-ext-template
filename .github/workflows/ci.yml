@@ -34,6 +34,9 @@ jobs:
       - name: Smoke
         run: ctest --test-dir build -L smoke --output-on-failure
 
+      - name: ISA audit
+        run: cmake --build build --target check_isa
+
       - name: Z3
         run: python3 -m pip install z3-solver
 
@@ -52,3 +55,20 @@ jobs:
         run: cmake --build build -j2
       - name: Tests
         run: ctest --test-dir build --output-on-failure
+
+  degrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install qemu-user
+        run: sudo apt-get update && sudo apt-get install -y qemu-user
+
+      - name: Configure
+        run: cmake -S . -B build -DTEMPLATE_BUILD_EXTENSION=OFF
+
+      - name: Build
+        run: cmake --build build -j2
+
+      - name: QEMU feature masking matrix
+        run: bash scripts/qemu_matrix.sh build
