@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(sourcemod_cpp_ext_template LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+if(NOT CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 17)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -97,6 +99,17 @@ if(TEMPLATE_BUILD_TESTS)
     add_test(NAME smoke_edge COMMAND smoke_edge)
     set_tests_properties(smoke_edge PROPERTIES LABELS "smoke;isa")
 
+    add_executable(third_party_tests tests/test_third_party.cpp)
+    target_include_directories(third_party_tests SYSTEM PRIVATE
+        third_party/readerwriterqueue
+        third_party/spscqueue
+        third_party/tinyfsm
+        third_party/spdlog/include)
+    target_compile_features(third_party_tests PRIVATE cxx_std_20)
+    target_link_libraries(third_party_tests PRIVATE pthread)
+    template_warnings(third_party_tests)
+    add_test(NAME third_party COMMAND third_party_tests)
+
     add_custom_target(check_isa
         COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/audit_isa.sh
                 $<TARGET_FILE:template_tests>
@@ -174,3 +187,5 @@ if(TEMPLATE_BUILD_EXTENSION)
                        "(set SM_SDK_DIR/HL2SDK_DIR/MMSOURCE_DIR)")
     endif()
 endif()
+
+

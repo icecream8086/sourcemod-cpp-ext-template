@@ -9,6 +9,10 @@ Only header-only libraries are allowed (no new shared objects / GLIBC symbols).
 | `ska_sort/` | https://github.com/skarupke/ska_sort | Boost Software License 1.0 | 通用 radix 排序参考 | 仅参考，未接入 |
 | `robin_hood/` | https://github.com/martinus/robin-hood-hashing | MIT | 哈希表 | 未接入 |
 | `nanobench/` | https://github.com/martinus/nanobench | MIT | 基准测试 | **已使用**：`bench/bench_distance.cpp` |
+| `readerwriterqueue/` | https://github.com/cameron314/readerwriterqueue | Simplified BSD | 主线程↔后台线程无锁队列 | 已编译 smoke，未接入业务 |
+| `spscqueue/` | https://github.com/rigtorp/SPSCQueue | MIT | SPSC 队列备选 | 已编译 smoke，未接入业务 |
+| `tinyfsm/` | https://github.com/digint/tinyfsm | MIT | 轻量状态机 | 已编译 smoke，未接入业务 |
+| `spdlog/` | https://github.com/gabime/spdlog | MIT | 异步/多 sink 日志 | 已编译 smoke，未接入业务 |
 
 ## 为什么是这几个
 
@@ -25,3 +29,4 @@ AVX2/SSE 相关的 `highway`、`xsimd` **没有 vendor**：它们的运行时分
 2. 在 `third_party/README.md` 登记来源、License、用途、是否接入；
 3. 不在业务代码里直接 `#include` 整库入口除非确实使用；
 4. 升级时单独提交，跑一遍 `ctest`、`check_isa` 与 `verify`。
+

@@ -9,7 +9,8 @@ A reusable template for SourceMod C++ extensions with:
 - **destructive smoke tests** (unsupported ISA paths, edge sizes, forced scalar, disabled-AVX2 build, sanitizers),
 - **Z3 formal checks** for dispatch safety, completeness and algorithm invariants,
 - **vendored header-only wheels** (radix heap, robin_hood, nanobench; ska_sort reference),
-- **GLIBC symbol ceiling gate** for old-distro portability.
+- **GLIBC symbol ceiling gate** for old-distro portability,
+- **L4D2 strict profile** (`clang++-strict` + lifetime annotations + EntRef/BuildID rules) — see `docs/COVENANT-L4D2.md`.
 
 See `docs/ISA.md` for ISA/ABI rules and `AGENTS.md` for the contribution/DoD checklist.
 
@@ -51,6 +52,12 @@ ctest --test-dir build32 --output-on-failure
 
 # sanitizers
 cmake -S . -B build-san -DTEMPLATE_BUILD_EXTENSION=OFF -DTEMPLATE_SANITIZE=address,undefined
+
+# L4D2 strict profile (clang++-strict + lifetime annotations)
+cmake -S . -B build-strict \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/clang-strict.cmake \
+  -DTEMPLATE_BUILD_EXTENSION=OFF
+cmake --build build-strict -j && ctest --test-dir build-strict --output-on-failure
 ```
 
 Formal checks (requires `pip install z3-solver`):

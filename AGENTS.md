@@ -18,6 +18,12 @@ cmake --build build-san -j && ctest --test-dir build-san --output-on-failure
 
 python3 -m pip install z3-solver
 cmake --build build --target verify
+
+# L4D2 强制 strict profile（clang++-strict + lifetime 注解）
+cmake -S . -B build-strict \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/clang-strict.cmake \
+  -DTEMPLATE_BUILD_EXTENSION=OFF
+cmake --build build-strict -j && ctest --test-dir build-strict --output-on-failure
 ```
 
 扩展目标（需要 SM/HL2/MM SDK）：
@@ -36,7 +42,8 @@ cmake --build build32 --target check_glibc
 4. **不要**写"假定输入一定合法"的 API：新原语必须返回 `bool` 并用 `Valid*` 守卫空指针/乘法溢出；
 5. **不要**跳过 smoke / sanitizer / verify 就提交；
 6. **不要**在热路径里反复 `cpuid`/`__builtin_cpu_supports`；
-7. **不要**假定 32 位或 64 位——用 `TEMPLATE_ARCH` + `size_t`/`uintptr_t`，CI 两边都跑。
+7. **不要**假定 32 位或 64 位——用 `TEMPLATE_ARCH` + `size_t`/`uintptr_t`，CI 两边都跑；
+8. **L4D2 扩展必须过 `docs/COVENANT-L4D2.md`**：`clang++-strict`、`STRICT_LIFETIMEBOUND`、EntRef、BuildID 校验、交付带数字；
 
 ## 新增原语 / ISA 变体
 
@@ -58,6 +65,7 @@ cmake --build build32 --target check_glibc
 - [ ] `ctest`（sanitizer 构建）通过
 - [ ] `cmake --build build --target verify` 通过（L1–L4）
 - [ ] `TEMPLATE_ARCH=32` 与 native 构建都通过
+- [ ] L4D2 扩展通过 `docs/COVENANT-L4D2.md` 的 strict profile（`clang++-strict` + `ctest`）
 - [ ] `TEMPLATE_DISABLE_AVX2=ON` 构建通过
 - [ ] 扩展目标 `check_glibc` 通过（如构建）
 - [ ] 日志能看出探测结果与实际选择
